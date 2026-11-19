@@ -72,10 +72,10 @@ footer b{color:var(--red)}
 .qr-caption{font-size:9px;letter-spacing:1px;margin-top:12px;color:#625c52;text-transform:uppercase}
 .history-nav{display:none;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;margin:0 16px 14px}
 .history-nav.show{display:grid}
-.history-nav button{min-width:48px;min-height:40px;border:2px solid var(--ink);background:var(--yellow);font-size:20px;font-weight:900;box-shadow:2px 2px var(--ink)}
+.history-nav button{min-width:82px;min-height:40px;border:2px solid var(--ink);background:var(--yellow);font-size:10px;letter-spacing:1px;font-weight:900;box-shadow:2px 2px var(--ink);padding:8px 10px;display:flex;align-items:center;justify-content:center;gap:7px}
 .history-nav button:disabled{opacity:.42;cursor:not-allowed}
 .history-nav span{font-size:9px;color:#625c52;text-align:center;white-space:nowrap}
-.payload{font-size:10px;line-height:1.5;overflow-wrap:anywhere;max-height:65px;overflow:auto;margin:0 16px 14px;color:#625c52}
+.payload{font-size:12px;line-height:1.4;font-weight:700;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;max-height:2.8em;overflow:hidden;text-overflow:ellipsis;margin:12px 0 0;color:#625c52;text-align:center}
 .popup-actions{padding:0 16px 16px;display:grid;grid-template-columns:1fr 1fr;gap:9px}
 @media(max-width:440px){.wrap{width:calc(100% - 22px)}main{padding-top:24px}.body{padding:12px}.camera-frame{min-height:220px}.tag{display:none}footer{flex-direction:column}}
 
@@ -115,10 +115,10 @@ footer b{color:var(--red)}
 </div>
 <div class="actions">
 <button class="btn dark" id="startBtn">Open Camera</button>
-<button class="btn ghost" id="stopBtn" disabled>Stop Camera</button>
+<button class="btn" id="galleryBtn">Gallery</button><input id="galleryInput" type="file" accept="image/*" hidden>
 </div>
 <div class="status" id="status" role="status" aria-live="polite">Camera is off. Tap Open Camera to begin.</div>
-<p class="note">Camera access requires HTTPS or localhost and browser permission. Scanning uses the browser's native Barcode Detection API. No QR content is uploaded.</p>
+<p class="note">Camera access requires HTTPS or localhost and browser permission. Camera and gallery scanning use the browser's native Barcode Detection API. No QR content is uploaded.</p>
 </div>
 </section>
 <details class="history" id="historyPanel"><summary>SCAN HISTORY <span id="historyCount">0 SAVED</span></summary>
@@ -129,9 +129,8 @@ footer b{color:var(--red)}
 <div class="overlay" id="resultOverlay" role="dialog" aria-modal="true" aria-labelledby="resultTitle">
 <div class="popup">
 <div class="popup-head"><strong id="resultTitle">New branded QR</strong><button class="close" id="closePopup" aria-label="Close popup">×</button></div>
-<div class="qr-card"><div class="qr-brand">QR REBRAND STUDIO</div><div id="qrOutput"></div><div class="qr-caption">Same decoded content · Scan to verify</div></div>
-<div class="history-nav" id="historyNav"><button type="button" id="historyPrev" aria-label="Show newer saved QR">←</button><span id="historyPosition"></span><button type="button" id="historyNext" aria-label="Show older saved QR">→</button></div>
-<div class="payload" id="payloadText"></div>
+<div class="qr-card"><div class="qr-brand">QR REBRAND STUDIO</div><div id="qrOutput"></div><div class="payload" id="payloadText"></div></div>
+<div class="history-nav" id="historyNav"><button type="button" id="historyPrev" aria-label="Go back to newer saved QR">← BACK</button><span id="historyPosition"></span><button type="button" id="historyNext" aria-label="Go next to older saved QR">NEXT →</button></div>
 <div class="popup-actions">
 <button class="btn dark" id="downloadBtn">Download PNG</button><button class="btn" id="copyImageBtn">Copy QR</button>
 <button class="btn" id="shareBtn">Share QR</button><button class="btn" id="copyTextBtn">Copy content</button></div>
@@ -186,13 +185,30 @@ function makeMatrix(text){
  return m;
 }
 const $=id=>document.getElementById(id),video=$("video"),status=$("status"),overlay=$("resultOverlay");
-let stream=null,detector=null,raf=0,active=false,popupOpen=false,lastValue="",lastAt=0,latestCanvas=null,currentPayload="",currentHistoryId=null;
+let stream=null,detector=null,raf=0,active=false,popupOpen=false,lastValue="",lastAt=0,latestCanvas=null,currentPayload="",currentHistoryId=null,audioContext=null;
 const HISTORY_KEY="icc-qr-rebrand-history-v1",HISTORY_LIMIT=30;
 function getHistory(){try{const v=JSON.parse(localStorage.getItem(HISTORY_KEY)||"[]");return Array.isArray(v)?v:[]}catch{return []}}
 function saveHistory(text,canvas){try{const item={id:Date.now().toString(36)+Math.random().toString(36).slice(2,7),text,createdAt:Date.now(),png:canvas.toDataURL("image/png")};const a=getHistory().filter(x=>x.text!==text);a.unshift(item);localStorage.setItem(HISTORY_KEY,JSON.stringify(a.slice(0,HISTORY_LIMIT)));renderHistory()}catch(e){setStatus("QR created, but local history could not be saved. Browser storage may be full.","error")}}
 function renderHistory(){const list=$("historyList"),items=getHistory();$("historyCount").textContent=items.length+" SAVED";list.replaceChildren();if(!items.length){const p=document.createElement("p");p.className="history-empty";p.textContent="Scanned QR codes will be saved on this device.";list.appendChild(p);updateHistoryNavigation();return}items.forEach(item=>{const row=document.createElement("div");row.className="history-item";const img=document.createElement("img");img.className="history-thumb";img.src=item.png;img.alt="Saved QR code";const info=document.createElement("div");info.className="history-info";const title=document.createElement("strong");title.textContent=item.text.slice(0,65)||"QR code";const date=document.createElement("small");date.textContent=new Date(item.createdAt).toLocaleString();info.append(title,date);const view=document.createElement("button");view.type="button";view.textContent="VIEW";view.addEventListener("click",()=>showResult(item.text,false,item.id));const del=document.createElement("button");del.type="button";del.textContent="×";del.setAttribute("aria-label","Delete saved QR");del.addEventListener("click",()=>{localStorage.setItem(HISTORY_KEY,JSON.stringify(getHistory().filter(x=>x.id!==item.id)));renderHistory()});row.append(img,info,view,del);list.appendChild(row)});updateHistoryNavigation()}
 function updateHistoryNavigation(){const nav=$("historyNav"),items=getHistory(),index=items.findIndex(item=>item.id===currentHistoryId),isHistoryView=popupOpen&&currentHistoryId!==null;nav.classList.toggle("show",isHistoryView);$("historyPrev").disabled=index<=0;$("historyNext").disabled=index<0||index>=items.length-1;$("historyPosition").textContent=index<0?"":(index+1)+" / "+items.length}
 function setStatus(message,kind=""){status.textContent=message;status.className="status"+(kind?" "+kind:"")}
+function prepareScanFeedback(){
+ try{
+  const AudioContext=window.AudioContext||window.webkitAudioContext;
+  if(AudioContext&&!audioContext)audioContext=new AudioContext();
+  if(audioContext&&audioContext.state==="suspended")audioContext.resume();
+ }catch(e){audioContext=null}
+}
+function giveScanFeedback(){
+ if("vibrate" in navigator)navigator.vibrate(80);
+ try{
+  if(!audioContext)return;
+  const now=audioContext.currentTime,oscillator=audioContext.createOscillator(),gain=audioContext.createGain();
+  oscillator.type="square";oscillator.frequency.setValueAtTime(1250,now);
+  gain.gain.setValueAtTime(1,now);gain.gain.exponentialRampToValueAtTime(.001,now+.1);
+  oscillator.connect(gain);gain.connect(audioContext.destination);oscillator.start(now);oscillator.stop(now+.11);
+ }catch(e){}
+}
 function drawBrandedQR(text){
  const matrix=makeMatrix(text),n=matrix.length,quiet=4,scale=6,size=(n+quiet*2)*scale;
  const canvas=document.createElement("canvas");canvas.width=size;canvas.height=size;
@@ -208,7 +224,7 @@ async function scanLoop(){
  if(!popupOpen&&video.readyState>=2){
   try{
    const found=await detector.detect(video);
-   if(found&&found.length){const value=found[0].rawValue;if(value&&!(value===lastValue&&Date.now()-lastAt<1800)){lastValue=value;lastAt=Date.now();showResult(value)}}
+    if(found&&found.length){const value=found[0].rawValue;if(value&&!(value===lastValue&&Date.now()-lastAt<1800)){lastValue=value;lastAt=Date.now();giveScanFeedback();showResult(value)}}
   }catch(e){setStatus("Scanning error: "+e.message,"error")}
  }
  if(active)raf=requestAnimationFrame(scanLoop);
@@ -217,23 +233,40 @@ async function startCamera(){
  if(active)return;
  if(!("BarcodeDetector" in window)){setStatus("This browser does not support native QR scanning. Open this page in an updated Chrome browser that supports BarcodeDetector.","error");return}
  try{
+    prepareScanFeedback();
   const supported=await BarcodeDetector.getSupportedFormats();
   if(!supported.includes("qr_code"))throw Error("QR code format is not supported by this browser.");
   detector=new BarcodeDetector({formats:["qr_code"]});
   stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:"environment"},width:{ideal:1280},height:{ideal:720}}});
   video.srcObject=stream;await video.play();active=true;video.style.display="block";$("placeholder").style.display="none";$("scanGuide").style.display="block";
-  $("startBtn").disabled=true;$("stopBtn").disabled=false;setStatus("Camera is active. Point it at a physical QR code.","good");scanLoop();
+  $("startBtn").textContent="Stop Camera";$("startBtn").setAttribute("aria-label","Stop camera");setStatus("Camera is active. Point it at a physical QR code.","good");scanLoop();
  }catch(e){stopCamera(false);setStatus("Could not start camera: "+(e.message||"Check camera permission and use localhost or HTTPS."),"error")}
 }
 function stopCamera(update=true){
  active=false;if(raf)cancelAnimationFrame(raf);raf=0;
  if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
  video.pause();video.srcObject=null;video.style.display="none";$("placeholder").style.display="block";$("scanGuide").style.display="none";
- $("startBtn").disabled=false;$("stopBtn").disabled=true;
+ $("startBtn").textContent="Open Camera";$("startBtn").setAttribute("aria-label","Open camera");
  if(update)setStatus("Camera is off.");
 }
-$("startBtn").addEventListener("click",startCamera);
-$("stopBtn").addEventListener("click",()=>{stopCamera();closeResult()});
+async function scanGalleryFile(file){
+ if(!file)return;
+ if(!(typeof BarcodeDetector!=="undefined")){setStatus("This browser does not support QR recognition from images.","error");return}
+ try{
+  const supported=await BarcodeDetector.getSupportedFormats();
+  if(!supported.includes("qr_code"))throw Error("QR code format is not supported by this browser.");
+  detector=new BarcodeDetector({formats:["qr_code"]});
+  const image=new Image(),url=URL.createObjectURL(file);
+  image.src=url;await image.decode();
+  const found=await detector.detect(image);URL.revokeObjectURL(url);
+  const value=found&&found[0]&&found[0].rawValue;
+  if(!value)throw Error("No QR code was found in that image.");
+  prepareScanFeedback();giveScanFeedback();showResult(value);
+ }catch(e){setStatus("Could not read QR image: "+(e.message||"Choose a clear QR image."),"error")}
+}
+$("startBtn").addEventListener("click",()=>active?(stopCamera(),closeResult()):startCamera());
+$("galleryBtn").addEventListener("click",()=>{prepareScanFeedback();$("galleryInput").click()});
+$("galleryInput").addEventListener("change",e=>{scanGalleryFile(e.target.files[0]);e.target.value=""});
 $("closePopup").addEventListener("click",closeResult);
 $("historyPrev").addEventListener("click",()=>showHistoryEntry(-1));
 $("historyNext").addEventListener("click",()=>showHistoryEntry(1));
