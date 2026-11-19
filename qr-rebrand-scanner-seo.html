@@ -38,7 +38,7 @@ h1 span{color:var(--red);font-style:italic}
 .panel{border:2px solid var(--ink);background:var(--paper);box-shadow:7px 8px var(--ink)}
 .panel-head{background:var(--ink);color:var(--paper);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px}
 .panel-head strong{font-size:13px;text-transform:uppercase}
-.panel-head small{font-size:9px;color:var(--yellow);letter-spacing:1px}
+.settings-trigger{width:34px;height:34px;border:1px solid var(--yellow);background:transparent;color:var(--yellow);font-size:20px;line-height:1;display:grid;place-items:center}
 .body{padding:16px}
 .camera-frame{position:relative;background:#151515;border:2px solid var(--ink);min-height:240px;aspect-ratio:4/3;overflow:hidden;display:grid;place-items:center}
 video{width:100%;height:100%;object-fit:cover;display:none}
@@ -65,6 +65,19 @@ footer b{color:var(--red)}
 .popup-head{display:flex;align-items:center;justify-content:space-between;background:var(--ink);color:var(--paper);padding:13px 15px}
 .popup-head strong{font-size:12px;letter-spacing:1px;text-transform:uppercase}
 .close{width:32px;height:32px;border:1px solid var(--paper);background:transparent;color:white;font-size:22px;line-height:1}
+.settings-list{padding:4px 16px 8px}
+.setting-row{min-height:58px;display:flex;align-items:center;justify-content:space-between;gap:16px;border-bottom:1px solid var(--line);font-size:11px;font-weight:900;letter-spacing:.5px;text-transform:uppercase}
+.setting-row:last-child{border-bottom:0}
+.switch{position:relative;width:48px;height:26px;flex:0 0 48px}
+.switch input{position:absolute;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+.switch i{position:absolute;inset:0;border:2px solid var(--ink);background:#c9c0b1;pointer-events:none;transition:background .15s ease}
+.switch i:after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;background:var(--paper);border:1px solid var(--ink);transition:transform .15s ease}
+.switch input:checked+i{background:var(--olive)}
+.switch input:checked+i:after{transform:translateX(20px)}
+.switch input:focus-visible+i{outline:3px solid #3b5998;outline-offset:2px}
+.switch input:disabled+i{opacity:.4}
+.scan-toast{position:fixed;z-index:150;left:50%;bottom:calc(16px + env(safe-area-inset-bottom));transform:translateX(-50%);display:none;width:max-content;max-width:calc(100vw - 28px);padding:11px 16px;border:2px solid var(--ink);background:var(--ink);color:var(--paper);box-shadow:4px 4px var(--yellow);font-size:10px;font-weight:700;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.scan-toast.show{display:block}
 .qr-card{margin:16px;background:#fff;border:2px solid var(--ink);padding:17px;text-align:center}
 .qr-brand{font-weight:900;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--red);margin-bottom:12px}
 #qrOutput{display:flex;justify-content:center;align-items:center;min-height:230px}
@@ -75,7 +88,7 @@ footer b{color:var(--red)}
 .history-nav button{min-width:82px;min-height:40px;border:2px solid var(--ink);background:var(--yellow);font-size:10px;letter-spacing:1px;font-weight:900;box-shadow:2px 2px var(--ink);padding:8px 10px;display:flex;align-items:center;justify-content:center;gap:7px}
 .history-nav button:disabled{opacity:.42;cursor:not-allowed}
 .history-nav span{font-size:9px;color:#625c52;text-align:center;white-space:nowrap}
-.payload{font-size:12px;line-height:1.4;font-weight:700;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;max-height:2.8em;overflow:hidden;text-overflow:ellipsis;margin:12px 0 0;color:#625c52;text-align:center}
+.payload{font-size:12px;line-height:1.4;font-weight:700;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;max-height:2.8em;overflow:hidden;text-overflow:ellipsis;margin:12px 0 0;color:#625c52;text-align:center}
 .popup-actions{padding:0 16px 16px;display:grid;grid-template-columns:1fr 1fr;gap:9px}
 @media(max-width:440px){.wrap{width:calc(100% - 22px)}main{padding-top:24px}.body{padding:12px}.camera-frame{min-height:220px}.tag{display:none}footer{flex-direction:column}}
 
@@ -106,7 +119,7 @@ footer b{color:var(--red)}
 <h1>Old QR.<span> New look.</span></h1>
 <p class="intro">Scan an existing or physical QR code and instantly create a new branded QR code with exactly the same decoded content. Download, copy or share the new QR, then close the popup and scan another code without restarting the camera.</p>
 <section class="panel">
-<div class="panel-head"><strong>QR Rebrand Scanner</strong><small>LIVE CAMERA</small></div>
+<div class="panel-head"><strong>QR Rebrand Scanner</strong><button class="settings-trigger" id="settingsBtn" type="button" aria-label="Scanner settings" title="Scanner settings">⚙</button></div>
 <div class="body">
 <div class="camera-frame" id="cameraFrame">
 <video id="video" playsinline muted></video>
@@ -126,6 +139,16 @@ footer b{color:var(--red)}
 </main>
 <footer><span><b>QR REBRAND STUDIO</b> — INDIA CYBER CAFE</span><span>OLD QR TO NEW QR · CONTENT PRESERVED</span></footer>
 </div>
+<div class="overlay" id="settingsOverlay" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+<div class="popup">
+<div class="popup-head"><strong id="settingsTitle">Scanner Settings</strong><button class="close" id="closeSettings" aria-label="Close settings">×</button></div>
+<div class="settings-list">
+<label class="setting-row" for="torchToggle"><span>Torch</span><span class="switch"><input id="torchToggle" type="checkbox"><i></i></span></label>
+<label class="setting-row" for="autoPopupToggle"><span>Auto Popup on Scan</span><span class="switch"><input id="autoPopupToggle" type="checkbox"><i></i></span></label>
+</div>
+</div>
+</div>
+<div class="scan-toast" id="scanToast" role="status" aria-live="polite" aria-atomic="true"></div>
 <div class="overlay" id="resultOverlay" role="dialog" aria-modal="true" aria-labelledby="resultTitle">
 <div class="popup">
 <div class="popup-head"><strong id="resultTitle">New branded QR</strong><button class="close" id="closePopup" aria-label="Close popup">×</button></div>
@@ -184,11 +207,13 @@ function makeMatrix(text){
  for(let right=n-1;right>=1;right-=2){if(right===6)right=5;for(let vert=0;vert<n;vert++){const y=up?n-1-vert:vert;for(let j=0;j<2;j++){const x=right-j;if(m[y][x]!==null)continue;let bit=bitIndex<codewords.length*8?((codewords[bitIndex>>>3]>>>(7-(bitIndex&7)))&1):0;bitIndex++;if((x+y)%2===0)bit^=1;set(x,y,bit)}}up=!up}
  return m;
 }
-const $=id=>document.getElementById(id),video=$("video"),status=$("status"),overlay=$("resultOverlay");
-let stream=null,detector=null,raf=0,active=false,popupOpen=false,lastValue="",lastAt=0,latestCanvas=null,currentPayload="",currentHistoryId=null,audioContext=null;
-const HISTORY_KEY="icc-qr-rebrand-history-v1",HISTORY_LIMIT=30;
+const $=id=>document.getElementById(id),video=$("video"),status=$("status"),overlay=$("resultOverlay"),settingsOverlay=$("settingsOverlay");
+let stream=null,detector=null,raf=0,active=false,popupOpen=false,settingsOpen=false,lastValue="",lastAt=0,lastSeenAt=0,latestCanvas=null,currentPayload="",currentHistoryId=null,audioContext=null,torchOn=false,toastTimer=0;
+const HISTORY_KEY="icc-qr-rebrand-history-v1",HISTORY_LIMIT=30,AUTO_POPUP_KEY="icc-qr-rebrand-auto-popup-v1";
+let autoPopup=(()=>{try{return localStorage.getItem(AUTO_POPUP_KEY)==="true"}catch{return false}})();
+$("autoPopupToggle").checked=autoPopup;
 function getHistory(){try{const v=JSON.parse(localStorage.getItem(HISTORY_KEY)||"[]");return Array.isArray(v)?v:[]}catch{return []}}
-function saveHistory(text,canvas){try{const item={id:Date.now().toString(36)+Math.random().toString(36).slice(2,7),text,createdAt:Date.now(),png:canvas.toDataURL("image/png")};const a=getHistory().filter(x=>x.text!==text);a.unshift(item);localStorage.setItem(HISTORY_KEY,JSON.stringify(a.slice(0,HISTORY_LIMIT)));renderHistory()}catch(e){setStatus("QR created, but local history could not be saved. Browser storage may be full.","error")}}
+function saveHistory(text,canvas){try{const item={id:Date.now().toString(36)+Math.random().toString(36).slice(2,7),text,createdAt:Date.now(),png:canvas.toDataURL("image/png")};const a=getHistory().filter(x=>x.text!==text);a.unshift(item);localStorage.setItem(HISTORY_KEY,JSON.stringify(a.slice(0,HISTORY_LIMIT)));renderHistory();return true}catch(e){setStatus("QR created, but local history could not be saved. Browser storage may be full.","error");return false}}
 function renderHistory(){const list=$("historyList"),items=getHistory();$("historyCount").textContent=items.length+" SAVED";list.replaceChildren();if(!items.length){const p=document.createElement("p");p.className="history-empty";p.textContent="Scanned QR codes will be saved on this device.";list.appendChild(p);updateHistoryNavigation();return}items.forEach(item=>{const row=document.createElement("div");row.className="history-item";const img=document.createElement("img");img.className="history-thumb";img.src=item.png;img.alt="Saved QR code";const info=document.createElement("div");info.className="history-info";const title=document.createElement("strong");title.textContent=item.text.slice(0,65)||"QR code";const date=document.createElement("small");date.textContent=new Date(item.createdAt).toLocaleString();info.append(title,date);const view=document.createElement("button");view.type="button";view.textContent="VIEW";view.addEventListener("click",()=>showResult(item.text,false,item.id));const del=document.createElement("button");del.type="button";del.textContent="×";del.setAttribute("aria-label","Delete saved QR");del.addEventListener("click",()=>{localStorage.setItem(HISTORY_KEY,JSON.stringify(getHistory().filter(x=>x.id!==item.id)));renderHistory()});row.append(img,info,view,del);list.appendChild(row)});updateHistoryNavigation()}
 function updateHistoryNavigation(){const nav=$("historyNav"),items=getHistory(),index=items.findIndex(item=>item.id===currentHistoryId),isHistoryView=popupOpen&&currentHistoryId!==null;nav.classList.toggle("show",isHistoryView);$("historyPrev").disabled=index<=0;$("historyNext").disabled=index<0||index>=items.length-1;$("historyPosition").textContent=index<0?"":(index+1)+" / "+items.length}
 function setStatus(message,kind=""){status.textContent=message;status.className="status"+(kind?" "+kind:"")}
@@ -209,22 +234,34 @@ function giveScanFeedback(){
   oscillator.connect(gain);gain.connect(audioContext.destination);oscillator.start(now);oscillator.stop(now+.11);
  }catch(e){}
 }
-function drawBrandedQR(text){
+function giveDuplicateFeedback(){
+ try{
+  if(!audioContext)return;
+  const now=audioContext.currentTime,oscillator=audioContext.createOscillator(),gain=audioContext.createGain();
+  oscillator.type="triangle";oscillator.frequency.setValueAtTime(760,now);
+  gain.gain.setValueAtTime(1,now);gain.gain.exponentialRampToValueAtTime(.001,now+.07);
+  oscillator.connect(gain);gain.connect(audioContext.destination);oscillator.start(now);oscillator.stop(now+.08);
+ }catch(e){}
+}
+function createBrandedCanvas(text){
  const matrix=makeMatrix(text),n=matrix.length,quiet=4,scale=6,size=(n+quiet*2)*scale;
  const canvas=document.createElement("canvas");canvas.width=size;canvas.height=size;
  const ctx=canvas.getContext("2d");ctx.fillStyle="#ffffff";ctx.fillRect(0,0,size,size);ctx.fillStyle="#2e2e2e";
  for(let y=0;y<n;y++)for(let x=0;x<n;x++)if(matrix[y][x])ctx.fillRect((x+quiet)*scale,(y+quiet)*scale,scale,scale);
- $("qrOutput").replaceChildren(canvas);latestCanvas=canvas;currentPayload=text;$("payloadText").textContent=text;
+ return canvas;
 }
+function drawBrandedQR(text){latestCanvas=createBrandedCanvas(text);$("qrOutput").replaceChildren(latestCanvas);currentPayload=text;$("payloadText").textContent=text}
 function showResult(text,save=true,historyId=null){try{drawBrandedQR(text);if(save)saveHistory(text,latestCanvas);currentHistoryId=historyId;popupOpen=true;overlay.classList.add("show");updateHistoryNavigation();$("closePopup").focus();setStatus("QR read successfully. Close the result to scan another code; camera remains active.","good")}catch(e){setStatus("QR was read, but could not be regenerated: "+e.message,"error")}}
+function showScanToast(value){const toast=$("scanToast");if(toastTimer)clearTimeout(toastTimer);toast.classList.remove("show");toast.textContent=value;toast.classList.add("show");toastTimer=setTimeout(()=>{toast.classList.remove("show");toastTimer=0},1000)}
+function handleScannedValue(value){if(autoPopup){giveScanFeedback();showResult(value);return}if(getHistory().some(item=>item.text===value)){giveDuplicateFeedback();showScanToast("ALREADY CAPTURED");setStatus("This QR code was already captured.","good");return}try{const canvas=createBrandedCanvas(value);if(saveHistory(value,canvas)){giveScanFeedback();showScanToast(value);setStatus("QR scanned and saved to history.","good")}}catch(e){setStatus("QR was read, but could not be saved: "+e.message,"error")}}
 function showHistoryEntry(direction){const items=getHistory(),index=items.findIndex(item=>item.id===currentHistoryId),next=items[index+direction];if(next)showResult(next.text,false,next.id)}
 function closeResult(){overlay.classList.remove("show");popupOpen=false;currentHistoryId=null;updateHistoryNavigation();if(active)setStatus("Camera is active. Point it at the next QR code.","good")}
 async function scanLoop(){
  if(!active)return;
- if(!popupOpen&&video.readyState>=2){
+ if(!popupOpen&&!settingsOpen&&video.readyState>=2){
   try{
    const found=await detector.detect(video);
-    if(found&&found.length){const value=found[0].rawValue;if(value&&!(value===lastValue&&Date.now()-lastAt<1800)){lastValue=value;lastAt=Date.now();giveScanFeedback();showResult(value)}}
+    if(found&&found.length&&!popupOpen&&!settingsOpen){const value=found[0].rawValue;if(value){const now=Date.now(),sameValue=value===lastValue,shouldHandle=autoPopup?!(sameValue&&now-lastAt<1800):(!sameValue||now-lastSeenAt>750);if(!autoPopup)lastSeenAt=now;if(shouldHandle){lastValue=value;lastAt=now;handleScannedValue(value)}}}
   }catch(e){setStatus("Scanning error: "+e.message,"error")}
  }
  if(active)raf=requestAnimationFrame(scanLoop);
@@ -239,12 +276,14 @@ async function startCamera(){
   detector=new BarcodeDetector({formats:["qr_code"]});
   stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:"environment"},width:{ideal:1280},height:{ideal:720}}});
   video.srcObject=stream;await video.play();active=true;video.style.display="block";$("placeholder").style.display="none";$("scanGuide").style.display="block";
+  updateTorchToggle();
   $("startBtn").textContent="Stop Camera";$("startBtn").setAttribute("aria-label","Stop camera");setStatus("Camera is active. Point it at a physical QR code.","good");scanLoop();
  }catch(e){stopCamera(false);setStatus("Could not start camera: "+(e.message||"Check camera permission and use localhost or HTTPS."),"error")}
 }
 function stopCamera(update=true){
  active=false;if(raf)cancelAnimationFrame(raf);raf=0;
  if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
+ torchOn=false;$("torchToggle").checked=false;$("torchToggle").disabled=true;
  video.pause();video.srcObject=null;video.style.display="none";$("placeholder").style.display="block";$("scanGuide").style.display="none";
  $("startBtn").textContent="Open Camera";$("startBtn").setAttribute("aria-label","Open camera");
  if(update)setStatus("Camera is off.");
@@ -261,17 +300,36 @@ async function scanGalleryFile(file){
   const found=await detector.detect(image);URL.revokeObjectURL(url);
   const value=found&&found[0]&&found[0].rawValue;
   if(!value)throw Error("No QR code was found in that image.");
-  prepareScanFeedback();giveScanFeedback();showResult(value);
+  prepareScanFeedback();handleScannedValue(value);
  }catch(e){setStatus("Could not read QR image: "+(e.message||"Choose a clear QR image."),"error")}
 }
+function updateTorchToggle(){
+ const toggle=$("torchToggle"),track=stream&&stream.getVideoTracks()[0];
+ let supported=false;
+ try{supported=!!(track&&track.getCapabilities&&track.getCapabilities().torch&&track.applyConstraints)}catch(e){}
+ toggle.disabled=!supported;
+ if(!supported){torchOn=false;toggle.checked=false}
+}
+async function setTorch(enabled){
+ const track=stream&&stream.getVideoTracks()[0];
+ if(!track){$("torchToggle").checked=false;return}
+ try{await track.applyConstraints({advanced:[{torch:enabled}]});torchOn=enabled}
+ catch(e){$("torchToggle").checked=torchOn;setStatus("Torch could not be changed on this camera.","error")}
+}
+function openSettings(){settingsOpen=true;$("autoPopupToggle").checked=autoPopup;updateTorchToggle();settingsOverlay.classList.add("show");$("closeSettings").focus()}
+function closeSettings(){settingsOpen=false;settingsOverlay.classList.remove("show");$("settingsBtn").focus()}
 $("startBtn").addEventListener("click",()=>active?(stopCamera(),closeResult()):startCamera());
 $("galleryBtn").addEventListener("click",()=>{prepareScanFeedback();$("galleryInput").click()});
 $("galleryInput").addEventListener("change",e=>{scanGalleryFile(e.target.files[0]);e.target.value=""});
+$("settingsBtn").addEventListener("click",openSettings);
+$("closeSettings").addEventListener("click",closeSettings);
+$("torchToggle").addEventListener("change",e=>setTorch(e.target.checked));
+$("autoPopupToggle").addEventListener("change",e=>{autoPopup=e.target.checked;try{localStorage.setItem(AUTO_POPUP_KEY,String(autoPopup))}catch(e){}});
 $("closePopup").addEventListener("click",closeResult);
 $("historyPrev").addEventListener("click",()=>showHistoryEntry(-1));
 $("historyNext").addEventListener("click",()=>showHistoryEntry(1));
 overlay.addEventListener("click",e=>{if(e.target===overlay)closeResult()});
-document.addEventListener("keydown",e=>{if(e.key==="Escape"&&popupOpen)closeResult()});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){if(settingsOpen)closeSettings();else if(popupOpen)closeResult()}});
 $("downloadBtn").addEventListener("click",()=>{if(!latestCanvas)return;const a=document.createElement("a");a.download="qr-studio-branded.png";a.href=latestCanvas.toDataURL("image/png");a.click()});
 $("copyTextBtn").addEventListener("click",async()=>{try{await navigator.clipboard.writeText($("payloadText").textContent);setStatus("Scanned content copied.","good")}catch{setStatus("Clipboard permission was denied. Select the content in the result card to copy it.","error")}});
 $("copyImageBtn").addEventListener("click",async()=>{try{if(!navigator.clipboard||!window.ClipboardItem)throw Error("QR image copy is not supported here. Use Download PNG.");const blob=await new Promise((resolve,reject)=>latestCanvas.toBlob(b=>b?resolve(b):reject(Error("Could not prepare QR image.")),"image/png"));await navigator.clipboard.write([new ClipboardItem({"image/png":blob})]);setStatus("Branded QR image copied.","good")}catch(e){setStatus(e.message||"Could not copy QR image. Check clipboard permission.","error")}});
