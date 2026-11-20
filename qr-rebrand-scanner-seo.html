@@ -65,6 +65,10 @@ footer b{color:var(--red)}
 .popup-head{display:flex;align-items:center;justify-content:space-between;background:var(--ink);color:var(--paper);padding:13px 15px}
 .popup-head strong{font-size:12px;letter-spacing:1px;text-transform:uppercase}
 .close{width:32px;height:32px;border:1px solid var(--paper);background:transparent;color:white;font-size:22px;line-height:1}
+.history-delete{width:30px;height:30px;flex:0 0 30px;margin-right:34px;border:1px solid var(--yellow);background:transparent;color:var(--paper);font-size:15px;line-height:1;filter:grayscale(1)}
+.history-delete:disabled{opacity:.35;cursor:not-allowed}
+.history-confirm-message{margin:18px 16px;color:#625c52;font-size:11px;line-height:1.6;text-align:center}
+.history-confirm-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px 16px}
 .settings-list{padding:4px 16px 8px}
 .setting-row{min-height:58px;display:flex;align-items:center;justify-content:space-between;gap:16px;border-bottom:1px solid var(--line);font-size:11px;font-weight:900;letter-spacing:.5px;text-transform:uppercase}
 .setting-row:last-child{border-bottom:0}
@@ -134,9 +138,16 @@ footer b{color:var(--red)}
 <p class="note">Camera access requires HTTPS or localhost and browser permission. Camera and gallery scanning use the browser's native Barcode Detection API. No QR content is uploaded.</p>
 </div>
 </section>
-<details class="history" id="historyPanel"><summary>SCAN HISTORY <span id="historyCount">0 SAVED</span></summary>
+<details class="history" id="historyPanel"><summary>SCAN HISTORY <span id="historyCount">0 SAVED</span><button class="history-delete" id="clearHistoryBtn" type="button" aria-label="Delete all scan history" title="Delete all history" disabled>🗑</button></summary>
 <div class="history-inner"><div class="history-list" id="historyList"><p class="history-empty">Scanned QR codes will be saved on this device.</p></div></div></details>
 </main>
+<div class="overlay" id="clearHistoryOverlay" role="dialog" aria-modal="true" aria-labelledby="clearHistoryTitle">
+<div class="popup">
+<div class="popup-head"><strong id="clearHistoryTitle">Delete All History?</strong><button class="close" id="closeClearHistory" aria-label="Close confirmation">×</button></div>
+<p class="history-confirm-message" id="clearHistoryMessage">Delete every saved QR code from this device? This action cannot be undone.</p>
+<div class="history-confirm-actions"><button class="btn" id="cancelClearHistory">Cancel</button><button class="btn dark" id="confirmClearHistory">Delete All</button></div>
+</div>
+</div>
 <footer><span><b>QR REBRAND STUDIO</b> — INDIA CYBER CAFE</span><span>OLD QR TO NEW QR · CONTENT PRESERVED</span></footer>
 </div>
 <div class="overlay" id="settingsOverlay" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
@@ -208,13 +219,28 @@ function makeMatrix(text){
  return m;
 }
 const $=id=>document.getElementById(id),video=$("video"),status=$("status"),overlay=$("resultOverlay"),settingsOverlay=$("settingsOverlay");
-let stream=null,detector=null,raf=0,active=false,popupOpen=false,settingsOpen=false,lastValue="",lastAt=0,lastSeenAt=0,latestCanvas=null,currentPayload="",currentHistoryId=null,audioContext=null,torchOn=false,toastTimer=0;
+let stream=null,detector=null,raf=0,active=false,popupOpen=false,settingsOpen=false,lastValue="",lastAt=0,lastSeenAt=0,latestCanvas=null,currentPayload="",currentHistoryId=null,audioContext=null,torchOn=false,toastTimer=0,pendingHistoryDeleteId=null,historyDeleteFocusTarget=null;
 const HISTORY_KEY="icc-qr-rebrand-history-v1",HISTORY_LIMIT=30,AUTO_POPUP_KEY="icc-qr-rebrand-auto-popup-v1";
 let autoPopup=(()=>{try{return localStorage.getItem(AUTO_POPUP_KEY)==="true"}catch{return false}})();
 $("autoPopupToggle").checked=autoPopup;
 function getHistory(){try{const v=JSON.parse(localStorage.getItem(HISTORY_KEY)||"[]");return Array.isArray(v)?v:[]}catch{return []}}
 function saveHistory(text,canvas){try{const item={id:Date.now().toString(36)+Math.random().toString(36).slice(2,7),text,createdAt:Date.now(),png:canvas.toDataURL("image/png")};const a=getHistory().filter(x=>x.text!==text);a.unshift(item);localStorage.setItem(HISTORY_KEY,JSON.stringify(a.slice(0,HISTORY_LIMIT)));renderHistory();return true}catch(e){setStatus("QR created, but local history could not be saved. Browser storage may be full.","error");return false}}
-function renderHistory(){const list=$("historyList"),items=getHistory();$("historyCount").textContent=items.length+" SAVED";list.replaceChildren();if(!items.length){const p=document.createElement("p");p.className="history-empty";p.textContent="Scanned QR codes will be saved on this device.";list.appendChild(p);updateHistoryNavigation();return}items.forEach(item=>{const row=document.createElement("div");row.className="history-item";const img=document.createElement("img");img.className="history-thumb";img.src=item.png;img.alt="Saved QR code";const info=document.createElement("div");info.className="history-info";const title=document.createElement("strong");title.textContent=item.text.slice(0,65)||"QR code";const date=document.createElement("small");date.textContent=new Date(item.createdAt).toLocaleString();info.append(title,date);const view=document.createElement("button");view.type="button";view.textContent="VIEW";view.addEventListener("click",()=>showResult(item.text,false,item.id));const del=document.createElement("button");del.type="button";del.textContent="×";del.setAttribute("aria-label","Delete saved QR");del.addEventListener("click",()=>{localStorage.setItem(HISTORY_KEY,JSON.stringify(getHistory().filter(x=>x.id!==item.id)));renderHistory()});row.append(img,info,view,del);list.appendChild(row)});updateHistoryNavigation()}
+function renderHistory(){
+ const list=$("historyList"),items=getHistory();
+ $("historyCount").textContent=items.length+" SAVED";$("clearHistoryBtn").disabled=items.length===0;list.replaceChildren();
+ if(!items.length){const p=document.createElement("p");p.className="history-empty";p.textContent="Scanned QR codes will be saved on this device.";list.appendChild(p);updateHistoryNavigation();return}
+ items.forEach(item=>{
+  const row=document.createElement("div");row.className="history-item";
+  const img=document.createElement("img");img.className="history-thumb";img.src=item.png;img.alt="Saved QR code";
+  const info=document.createElement("div");info.className="history-info";
+  const title=document.createElement("strong");title.textContent=item.text.slice(0,65)||"QR code";
+  const date=document.createElement("small");date.textContent=new Date(item.createdAt).toLocaleString();info.append(title,date);
+  const view=document.createElement("button");view.type="button";view.textContent="VIEW";view.addEventListener("click",()=>showResult(item.text,false,item.id));
+  const del=document.createElement("button");del.type="button";del.textContent="×";del.setAttribute("aria-label","Delete saved QR");del.addEventListener("click",e=>openHistoryDeleteConfirmation(item.id,e.currentTarget));
+  row.append(img,info,view,del);list.appendChild(row);
+ });
+ updateHistoryNavigation();
+}
 function updateHistoryNavigation(){const nav=$("historyNav"),items=getHistory(),index=items.findIndex(item=>item.id===currentHistoryId),isHistoryView=popupOpen&&currentHistoryId!==null;nav.classList.toggle("show",isHistoryView);$("historyPrev").disabled=index<=0;$("historyNext").disabled=index<0||index>=items.length-1;$("historyPosition").textContent=index<0?"":(index+1)+" / "+items.length}
 function setStatus(message,kind=""){status.textContent=message;status.className="status"+(kind?" "+kind:"")}
 function prepareScanFeedback(){
@@ -318,6 +344,29 @@ async function setTorch(enabled){
 }
 function openSettings(){settingsOpen=true;$("autoPopupToggle").checked=autoPopup;updateTorchToggle();settingsOverlay.classList.add("show");$("closeSettings").focus()}
 function closeSettings(){settingsOpen=false;settingsOverlay.classList.remove("show");$("settingsBtn").focus()}
+function openHistoryDeleteConfirmation(itemId,trigger){
+ pendingHistoryDeleteId=itemId;historyDeleteFocusTarget=trigger;
+ const deleteAll=itemId===null;
+ $("clearHistoryTitle").textContent=deleteAll?"Delete All History?":"Delete This QR?";
+ $("clearHistoryMessage").textContent=deleteAll?"Delete every saved QR code from this device? This action cannot be undone.":"Delete this saved QR code from history? This action cannot be undone.";
+ $("confirmClearHistory").textContent=deleteAll?"Delete All":"Delete";
+ $("clearHistoryOverlay").classList.add("show");$("cancelClearHistory").focus();
+}
+function closeClearHistory(){
+ $("clearHistoryOverlay").classList.remove("show");
+ const target=historyDeleteFocusTarget;
+ (target&&target.isConnected&&!target.disabled?target:$("historyPanel").querySelector("summary")).focus();
+ pendingHistoryDeleteId=null;historyDeleteFocusTarget=null;
+}
+function confirmHistoryDelete(){
+ const itemId=pendingHistoryDeleteId,deleteAll=itemId===null;
+ try{
+  if(deleteAll)localStorage.removeItem(HISTORY_KEY);
+  else localStorage.setItem(HISTORY_KEY,JSON.stringify(getHistory().filter(item=>item.id!==itemId)));
+  if(deleteAll||currentHistoryId===itemId)currentHistoryId=null;
+  renderHistory();closeClearHistory();setStatus(deleteAll?"All scan history deleted.":"QR removed from history.","good");
+ }catch(e){closeClearHistory();setStatus("Could not delete scan history.","error")}
+}
 $("startBtn").addEventListener("click",()=>active?(stopCamera(),closeResult()):startCamera());
 $("galleryBtn").addEventListener("click",()=>{prepareScanFeedback();$("galleryInput").click()});
 $("galleryInput").addEventListener("change",e=>{scanGalleryFile(e.target.files[0]);e.target.value=""});
@@ -325,11 +374,16 @@ $("settingsBtn").addEventListener("click",openSettings);
 $("closeSettings").addEventListener("click",closeSettings);
 $("torchToggle").addEventListener("change",e=>setTorch(e.target.checked));
 $("autoPopupToggle").addEventListener("change",e=>{autoPopup=e.target.checked;try{localStorage.setItem(AUTO_POPUP_KEY,String(autoPopup))}catch(e){}});
+$("clearHistoryBtn").addEventListener("click",e=>{e.preventDefault();e.stopPropagation();if(!getHistory().length)return;openHistoryDeleteConfirmation(null,e.currentTarget)});
+$("closeClearHistory").addEventListener("click",closeClearHistory);
+$("cancelClearHistory").addEventListener("click",closeClearHistory);
+$("confirmClearHistory").addEventListener("click",confirmHistoryDelete);
+$("clearHistoryOverlay").addEventListener("click",e=>{if(e.target.id==="clearHistoryOverlay")closeClearHistory()});
 $("closePopup").addEventListener("click",closeResult);
 $("historyPrev").addEventListener("click",()=>showHistoryEntry(-1));
 $("historyNext").addEventListener("click",()=>showHistoryEntry(1));
 overlay.addEventListener("click",e=>{if(e.target===overlay)closeResult()});
-document.addEventListener("keydown",e=>{if(e.key==="Escape"){if(settingsOpen)closeSettings();else if(popupOpen)closeResult()}});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){if($("clearHistoryOverlay").classList.contains("show"))closeClearHistory();else if(settingsOpen)closeSettings();else if(popupOpen)closeResult()}});
 $("downloadBtn").addEventListener("click",()=>{if(!latestCanvas)return;const a=document.createElement("a");a.download="qr-studio-branded.png";a.href=latestCanvas.toDataURL("image/png");a.click()});
 $("copyTextBtn").addEventListener("click",async()=>{try{await navigator.clipboard.writeText($("payloadText").textContent);setStatus("Scanned content copied.","good")}catch{setStatus("Clipboard permission was denied. Select the content in the result card to copy it.","error")}});
 $("copyImageBtn").addEventListener("click",async()=>{try{if(!navigator.clipboard||!window.ClipboardItem)throw Error("QR image copy is not supported here. Use Download PNG.");const blob=await new Promise((resolve,reject)=>latestCanvas.toBlob(b=>b?resolve(b):reject(Error("Could not prepare QR image.")),"image/png"));await navigator.clipboard.write([new ClipboardItem({"image/png":blob})]);setStatus("Branded QR image copied.","good")}catch(e){setStatus(e.message||"Could not copy QR image. Check clipboard permission.","error")}});
